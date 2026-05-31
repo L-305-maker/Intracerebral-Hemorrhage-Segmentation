@@ -15,7 +15,7 @@ def args_parse():
     args.add_argument("--save_dir",type=str,default="outputs")
     args.add_argument("--config_dir",type=str,default="configs")
     args.add_argument("--dropout",type=float,default=0)
-    args.add_argument("--criterion",choices=["BCEWithLogitLoss","Weighted BCE+DiceLoss","Focal Loss","Tversky Loss"],default="BCEWithLogitLoss")
+    args.add_argument("--criterion",choices=["BCEWithLogitLoss","Weighted_BCE+DiceLoss","Focal_Loss","Tversky_Loss"],default="BCEWithLogitLoss")
     args.add_argument("--Attention",action="store_true",default=False)
     args.add_argument("--BatchNorm",action="store_true",default=False)
     args.add_argument("--Double_Conv",action="store_true",default=False)

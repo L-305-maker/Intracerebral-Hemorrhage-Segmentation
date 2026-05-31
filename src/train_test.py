@@ -1,5 +1,4 @@
-﻿import argparse
-import random
+﻿import random
 import sys
 from pathlib import Path
 from typing import List, Tuple
@@ -248,13 +247,13 @@ def main(args=None):
 
     if args.criterion == "BCEWithLogitLoss":
         criterion = nn.BCEWithLogitsLoss()
-    elif args.criterion == "Focal Loss":
+    elif args.criterion == "Focal_Loss":
         from src.criterion.Focal_Loss import Focal_Loss
         criterion = Focal_Loss()
-    elif args.criterion == "Tversky Loss":
+    elif args.criterion == "Tversky_Loss":
         from src.criterion.Tversky_Loss import Tversky_Loss
         criterion = Tversky_Loss()
-    elif args.criterion == "Weighted BCE+DiceLoss":
+    elif args.criterion == "Weighted_BCE+DiceLoss":
         from src.criterion.Weighted_DiceLoss import Weighted_DiceLoss
         criterion = Weighted_DiceLoss()
     else:
