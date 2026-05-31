@@ -6,6 +6,8 @@ from PIL import Image
 import random
 import numpy as np
 
+from src.data_augment import get_train_transforms,get_val_transforms
+
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"}
 
 class ICHDataset(Dataset):
@@ -14,30 +16,24 @@ class ICHDataset(Dataset):
         self.image_size = image_size
         self.pairs = pairs
         self.augment = augment
+        if augment:
+            self.transform_pipeline = get_train_transforms(image_size=image_size)
+        else:
+            self.transform_pipeline = get_val_transforms(image_size=image_size)
 
-    def transform(self, image: Image.Image, mask: Image.Image): #图像预处理和数据增强（如随机翻转、旋转等）
-        #============================================================================
-        #在此完成图像预处理和数据增强的逻辑
-        target_size = (self.image_size, self.image_size)
-        image = image.resize(target_size, resample=Image.Resampling.BILINEAR)
-        mask = mask.resize(target_size, resample=Image.Resampling.NEAREST)
 
-        if self.augment:
-            if random.random() > 0.5:
-                image = image.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
-                mask = mask.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
-            if random.random() > 0.5:
-                image = image.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
-                mask = mask.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
-            if random.random() > 0.5:
-                image = image.transpose(Image.Transpose.ROTATE_90)
-                mask = mask.transpose(Image.Transpose.ROTATE_90)
+    def transform(self, image: Image.Image, mask: Image.Image): 
+        image_np = np.array(image)   
+        mask_np = np.array(mask)      
 
-        image_t = torch.from_numpy(np.array(image, dtype=np.uint8)).unsqueeze(0).float() / 255.0
-        mask_t  = torch.from_numpy(np.array(mask, dtype=np.uint8)).unsqueeze(0)
-        mask_t = (mask_t > 0).float()
-        #============================================================================
-        return image_t, mask_t #形状：1xHxW, 1xHxW
+        transformed = self.transform_pipeline(image=image_np, mask=mask_np)
+        image_aug = transformed['image']   # numpy, (H, W), 0-255
+        mask_aug = transformed['mask']     # numpy, (H, W), 0-255
+
+        image_t = torch.from_numpy(image_aug).unsqueeze(0).float() / 255.0  # (1, H, W), [0, 1]
+        mask_t = torch.from_numpy(mask_aug).unsqueeze(0)                     # (1, H, W)
+        mask_t = (mask_t > 0).float()          
+        return image_t, mask_t 
 
     def __len__(self) -> int: #获取图像数目
         return len(self.pairs)

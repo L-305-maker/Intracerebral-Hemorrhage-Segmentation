@@ -39,11 +39,17 @@ def build_experiment_name(args) -> str:
         f"lr{args.lr}",
         f"base{args.base_channels}",
     ]
-    if args.model == "Advanced_model":
+    if args.model in {"Advanced_model", "top_Unet"}:
         if args.Double_Conv:
             parts.append("DoubleConv")
+        if getattr(args, "Residual", False):
+            parts.append("Residual")
         if args.BatchNorm:
             parts.append("BatchNorm")
+        if args.Attention:
+            parts.append("Attention")
+        if getattr(args, "ASPP", False):
+            parts.append("ASPP")
         if args.dropout > 0:
             parts.append(f"dropout{args.dropout}")
     return _safe_name("_".join(parts))
@@ -69,6 +75,8 @@ def collect_model_parameters(args, model) -> dict:
         "Attention": args.Attention,
         "BatchNorm": args.BatchNorm,
         "Double_Conv": args.Double_Conv,
+        "Residual": getattr(args, "Residual", False),
+        "ASPP": getattr(args, "ASPP", False),
         "mode": args.mode,
         "total_parameters": total_parameters,
         "trainable_parameters": trainable_parameters,

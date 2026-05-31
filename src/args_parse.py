@@ -4,7 +4,7 @@ def args_parse():
     args = argparse.ArgumentParser(description="choose your parameters")
 
     args.add_argument("--epochs",type=int,default=30,help="the epochs the model run")
-    args.add_argument("--model",choices=["baseline","Advanced_model"],default="baseline",help="choose the model you want to run")
+    args.add_argument("--model",choices=["baseline","Advanced_Unet","cited_Unet","top_Unet"],default="baseline",help="choose the model you want to run")
     args.add_argument("--batch_size",type=int,default=8)
     args.add_argument("--lr",type=float,default=0.001)
     args.add_argument("--seed",type=int,default=42)
@@ -19,6 +19,8 @@ def args_parse():
     args.add_argument("--Attention",action="store_true",default=False)
     args.add_argument("--BatchNorm",action="store_true",default=False)
     args.add_argument("--Double_Conv",action="store_true",default=False)
+    args.add_argument("--Residual",action="store_true",default=False)
+    args.add_argument("--ASPP",action="store_true",default=False)
     args.add_argument("--mode",choices=["train","eval"],default="train")
 
     parsed_args = args.parse_args()

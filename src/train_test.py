@@ -13,8 +13,10 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.append(str(PROJECT_ROOT))
 
-from src.models.baseline import SimpleUNet
-from src.models.Advanced_model import Advanced_Unet
+from src.models.Simple_Unet import SimpleUNet
+from src.models.Advanced_Unet import Advanced_Unet
+from src.models.cited_Attention_Unet import AttU_Net
+from src.models.top_Unet import Top_Unet
 from src.data_process import get_dataloaders
 from src.args_parse import args_parse
 from src.result_store import save_experiment_record
@@ -233,13 +235,26 @@ def main(args=None):
 
     if args.model == "baseline":
         model = SimpleUNet(in_channels=1, out_channels=1, base_channels=args.base_channels)
-    elif args.model == "Advanced_model":
+    elif args.model == "Advanced_Unet":
         model = Advanced_Unet(
             in_channels=1,
             out_channels=1,
             base_channels=args.base_channels,
             use_batchnorm=args.BatchNorm,
             use_double_conv=args.Double_Conv,
+            dropout=args.dropout
+        )
+    elif args.model == "cited_Unet":
+        model = AttU_Net(n_channels=1, n_classes=1, scale_factor=max(1, 64 // args.base_channels))
+    elif args.model == "top_Unet":
+        model = Top_Unet(
+            in_channels=1,
+            out_channels=1,
+            base_channels=args.base_channels,
+            use_batchnorm=args.BatchNorm,
+            use_residual=args.Residual,
+            use_attention=args.Attention,
+            use_aspp=args.ASPP,
             dropout=args.dropout
         )
     else:

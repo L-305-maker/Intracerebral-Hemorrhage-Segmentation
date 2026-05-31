@@ -21,6 +21,8 @@ COMPARE_KEYS = [
     "Attention",
     "BatchNorm",
     "Double_Conv",
+    "Residual",
+    "ASPP",
 ]
 
 METRICS = ["valid_Dice", "valid_IoU", "test_Dice", "test_IoU"]

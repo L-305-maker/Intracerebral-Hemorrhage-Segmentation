@@ -3,7 +3,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class Tversky_Loss(nn.Module):
-    def __init__(self,alpha=0.75,beta=0.5,smooth=1.0):
+    #alpha控制惩罚FP，beta控制惩罚FN
+    #本实验中对于脑出血的漏检风险更大，所以应该调大beta
+    def __init__(self,alpha=0.3,beta=0.7,smooth=1.0):
         super().__init__()
         self.alpha = alpha
         self.beta = beta
