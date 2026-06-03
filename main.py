@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 
 from src.train_test import main as train_test_main
-from src.visualize import visualize
+from src.utils.visualize import visualize
 
 
 def run_train_test(train_args):

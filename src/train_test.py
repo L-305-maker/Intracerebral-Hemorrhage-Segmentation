@@ -20,6 +20,7 @@ from src.models.top_Unet import Top_Unet
 from src.data_process import get_dataloaders
 from src.args_parse import args_parse
 from src.result_store import save_experiment_record
+from src.utils.mertics import dice_coefficient,iou_score
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"}
 
 
@@ -28,30 +29,8 @@ def seed_everything(seed: int = 42) -> None:
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
-
-
-def dice_coefficient(logits: torch.Tensor, targets: torch.Tensor, eps: float = 1e-6) -> torch.Tensor:
-    probs = torch.sigmoid(logits) #形状：Bx1xHxW，经过sigmoid将logits转换为概率值
-    preds = (probs > 0.5).float()
-    targets = targets.float()
-
-    intersection = (preds * targets).sum(dim=(1, 2, 3))             #形状：B，计算每个分割与金标准的交集像素数
-    union = preds.sum(dim=(1, 2, 3)) + targets.sum(dim=(1, 2, 3))   #形状：B，计算每个分割和金标准的像素总数
-    dice = (2.0 * intersection + eps) / (union + eps)               #形状：B，计算每个分割与金标准的交集占总数的比例
-    return dice.mean()                                              #计算B个分割的平均Dice系数
-
-
-def iou_score(logits: torch.Tensor, targets: torch.Tensor, eps: float = 1e-6) -> torch.Tensor:
-    probs = torch.sigmoid(logits) #形状：Bx1xHxW，经过sigmoid将logits转换为概率值
-    preds = (probs > 0.5).float()
-    targets = targets.float()   
-
-    intersection = (preds * targets).sum(dim=(1, 2, 3))             #形状：B，计算每个分割与金标准的交集像素数 
-    total = preds.sum(dim=(1, 2, 3)) + targets.sum(dim=(1, 2, 3))   #形状：B，计算每个分割和金标准的像素总数
-    union = total - intersection                                    #形状：B，计算每个分割与金标准的并集像素数（总数减去交集）
-    iou = (intersection + eps) / (union + eps)                      #形状：B，计算每个分割与金标准的交集占并集的比例
-    return iou.mean()                                               #计算B个分割的平均IoU分数
-
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 def plot_images(data_loader):
     # Visualize a batch of images and masks from the dataloader
@@ -74,7 +53,7 @@ def plot_images(data_loader):
     plt.tight_layout()
     plt.show()
 
-def train_epoch(model, loader, criterion, optimizer, epochs, device):
+def train_epoch(model, loader, criterion, optimizer, epochs, device, threshold):
     
     total_loss = 0.0
     total_dice = 0.0
@@ -97,8 +76,8 @@ def train_epoch(model, loader, criterion, optimizer, epochs, device):
         optimizer.step()
 
         total_loss += loss.item()
-        total_dice += dice_coefficient(logits.detach(),mask).item()
-        total_iou += iou_score(logits.detach(),mask).item()
+        total_dice += dice_coefficient(logits.detach(),mask,threshold).item()
+        total_iou += iou_score(logits.detach(),mask,threshold).item()
 
         pbar.set_postfix({'loss':total_loss/(i+1),'Dice':total_dice/(i+1),"Iou":total_iou/(i+1)})
     #============================================================================
@@ -106,7 +85,7 @@ def train_epoch(model, loader, criterion, optimizer, epochs, device):
     return  {'loss': total_loss / (i+1), 'Dice': total_dice / (i+1), 'IoU': total_iou / (i+1)}
 
 
-def valid_epoch( model: nn.Module, loader: DataLoader, criterion: nn.Module, epochs, device):
+def valid_epoch( model: nn.Module, loader: DataLoader, criterion: nn.Module, epochs, device, threshold):
     
     total_loss = 0.0
     total_dice = 0.0
@@ -124,8 +103,8 @@ def valid_epoch( model: nn.Module, loader: DataLoader, criterion: nn.Module, epo
             logits = model(images)
             loss = criterion(logits,mask)
             
-            total_dice += dice_coefficient(logits,mask).item()
-            total_iou += iou_score(logits,mask).item()
+            total_dice += dice_coefficient(logits,mask,threshold).item()
+            total_iou += iou_score(logits,mask,threshold).item()
             total_loss += loss.item()
 
             pbar.set_postfix({'loss':total_loss/(i+1),'Dice':total_dice/(i+1),"Iou":total_iou/(i+1)})
@@ -133,7 +112,7 @@ def valid_epoch( model: nn.Module, loader: DataLoader, criterion: nn.Module, epo
     return  {'loss': total_loss / (i+1), 'Dice': total_dice / (i+1), 'IoU': total_iou / (i+1)}
 
 
-def test(model: nn.Module, data_loader: DataLoader, out_dir: Path, save_dir, device):
+def test(model: nn.Module, data_loader: DataLoader, out_dir: Path, save_dir, device, threshold):
 
     out_dir = Path(out_dir)
     save_dir = Path(save_dir)
@@ -161,13 +140,13 @@ def test(model: nn.Module, data_loader: DataLoader, out_dir: Path, save_dir, dev
             #在此完成一个测试周期的逻辑，包括前向传播、计算Dice和IoU等
             logits = model(images)
             
-            total_dice += dice_coefficient(logits,masks).item()
-            total_iou += iou_score(logits,masks).item()
+            total_dice += dice_coefficient(logits,masks,threshold).item()
+            total_iou += iou_score(logits,masks,threshold).item()
 
             pbar.set_postfix({'Dice':total_dice/(i+1),"Iou":total_iou/(i+1)})
 
             probs = torch.sigmoid(logits).cpu().numpy()
-            preds = (probs > 0.5) * 255
+            preds = (probs > threshold) * 255
             images = images.cpu().numpy() * 255
             masks = masks.cpu().numpy() * 255
 
@@ -189,7 +168,7 @@ def test(model: nn.Module, data_loader: DataLoader, out_dir: Path, save_dir, dev
         "predictions_dir": str(out_dir),
     }
 
-def train(model,optimizer,epochs,device,save_dir,train_loader,valid_loader,criterion):
+def train(model,optimizer,epochs,device,save_dir,train_loader,valid_loader,criterion,threshold,scheduler=None):
 
     save_dir = Path(save_dir)
     model = model.to(device)
@@ -201,11 +180,13 @@ def train(model,optimizer,epochs,device,save_dir,train_loader,valid_loader,crite
     best_valid_metrics = None
     history = []
     for epoch in range(1, epochs + 1):
+        current_lr = optimizer.param_groups[0]["lr"]
         
-        train_metrics = train_epoch(model, train_loader, criterion, optimizer, epoch, device)
-        valid_metrics = valid_epoch(model,valid_loader,criterion, epoch, device)
+        train_metrics = train_epoch(model, train_loader, criterion, optimizer, epoch, device, threshold)
+        valid_metrics = valid_epoch(model,valid_loader,criterion, epoch, device, threshold)
         history.append({
             "epoch": epoch,
+            "lr": current_lr,
             "train": train_metrics,
             "valid": valid_metrics,
         })
@@ -215,6 +196,13 @@ def train(model,optimizer,epochs,device,save_dir,train_loader,valid_loader,crite
             best_valid_metrics = {"epoch": epoch, **valid_metrics}
             torch.save(model.state_dict(), best_ckpt)
             print(f"Saved best model to {best_ckpt} (Dice={best_dice:.4f})")
+
+        if scheduler is not None:
+            old_lr = optimizer.param_groups[0]["lr"]
+            scheduler.step(valid_metrics["Dice"])
+            new_lr = optimizer.param_groups[0]["lr"]
+            if new_lr < old_lr:
+                print(f"Learning rate reduced: {old_lr:.6g} -> {new_lr:.6g}")
 
     print("Training finished.")
     print(f"Best validation Dice: {best_dice:.4f}")
@@ -274,11 +262,30 @@ def main(args=None):
     else:
         raise ValueError(f"Unknown criterion: {args.criterion}")
 
-    train_loader,valid_loader,test_loader = get_dataloaders(args.data_dir,args.seed,args.num_workers,args.image_size,args.batch_size)
+    train_loader,valid_loader,test_loader = get_dataloaders(
+        args.data_dir,
+        args.seed,
+        args.num_workers,
+        args.image_size,
+        args.batch_size,
+        args.augment,
+        args.roi_crop,
+        args.roi_threshold,
+        args.roi_padding,
+    )
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
     optimizer = torch.optim.Adam(model.parameters(),lr=args.lr)
+    scheduler = None
+    if args.lr_scheduler:
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer,
+            mode="max",
+            factor=args.lr_factor,
+            patience=args.lr_patience,
+            min_lr=args.min_lr,
+        )
     save_dir = Path(args.save_dir)
     train_result = None
     test_result = None
@@ -292,14 +299,17 @@ def main(args=None):
             save_dir,
             train_loader,
             valid_loader,
-            criterion
+            criterion,
+            args.threshold,
+            scheduler
         )
         test_result = test(
             model,
             test_loader,
             save_dir / "predictions",
             save_dir,
-            device
+            device,
+            args.threshold
         )
     elif args.mode == "eval":
         test_result = test(
@@ -307,7 +317,8 @@ def main(args=None):
             test_loader,
             save_dir / "predictions",
             save_dir,
-            device
+            device,
+            args.threshold
         )
     else:
         raise ValueError(f"Unknown mode: {args.mode}")

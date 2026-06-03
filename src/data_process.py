@@ -7,15 +7,20 @@ import random
 import numpy as np
 
 from src.data_augment import get_train_transforms,get_val_transforms
+from src.data_roi import crop_brain_roi
 
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"}
 
 class ICHDataset(Dataset):
-    def __init__(self, pairs: List[Tuple[Path, Path]], image_size: int = 256, augment: bool = False):
+    def __init__(self, pairs: List[Tuple[Path, Path]], image_size: int = 256, augment: bool = False,
+                 roi_crop: bool = False, roi_threshold: int = 5, roi_padding: int = 8):
         super().__init__()
         self.image_size = image_size
         self.pairs = pairs
         self.augment = augment
+        self.roi_crop = roi_crop
+        self.roi_threshold = roi_threshold
+        self.roi_padding = roi_padding
         if augment:
             self.transform_pipeline = get_train_transforms(image_size=image_size)
         else:
@@ -42,6 +47,8 @@ class ICHDataset(Dataset):
         img_path, mask_path = self.pairs[idx]
         image = Image.open(img_path).convert("L") #将图像转换为灰度模式
         mask = Image.open(mask_path).convert("L")
+        if self.roi_crop:
+            image, mask = crop_brain_roi(image, mask, self.roi_threshold, self.roi_padding)
         image_t, mask_t = self.transform(image, mask)
         return image_t, mask_t #1xHxW, 1xHxW
 
@@ -70,7 +77,8 @@ def collect_pairs(data_dir: Path):
         pairs.append((img_path, lab_candidates[0]))
     return pairs
 
-def get_dataloaders(data_dir,seed,num_workers,image_size,batch_size) -> Tuple[DataLoader, DataLoader, DataLoader]:
+def get_dataloaders(data_dir,seed,num_workers,image_size,batch_size,augment=False,
+                    roi_crop=False, roi_threshold=5, roi_padding=8) -> Tuple[DataLoader, DataLoader, DataLoader]:
     pairs = collect_pairs(Path(data_dir))
     random.seed(seed)
     random.shuffle(pairs)
@@ -89,9 +97,9 @@ def get_dataloaders(data_dir,seed,num_workers,image_size,batch_size) -> Tuple[Da
 
     #============================================================================
     #在此完成Dataset和DataLoader的定义
-    train_ds = ICHDataset(train_pairs,image_size=image_size,augment=True)
-    valid_ds = ICHDataset(valid_pairs,image_size=image_size,augment=False)
-    test_ds = ICHDataset(test_pairs,image_size=image_size,augment=False)
+    train_ds = ICHDataset(train_pairs,image_size=image_size,augment=augment,roi_crop=roi_crop,roi_threshold=roi_threshold,roi_padding=roi_padding)
+    valid_ds = ICHDataset(valid_pairs,image_size=image_size,augment=False,roi_crop=roi_crop,roi_threshold=roi_threshold,roi_padding=roi_padding)
+    test_ds = ICHDataset(test_pairs,image_size=image_size,augment=False,roi_crop=roi_crop,roi_threshold=roi_threshold,roi_padding=roi_padding)
     
     train_loader = DataLoader(
         train_ds,
